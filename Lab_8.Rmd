@@ -1,0 +1,185 @@
+---
+title: "Lab_8"
+author: "Bijan GURUNG"
+date: "3/26/2022"
+output: html_document
+---
+
+
+## 1. {.tabset}
+### 1. Reading packages and geo-files
+
+The packages `raster` and `sf` were downloaded. The watershed `.shp` file is read, so are the raster images `tif` of Riley from 2016 till 2019. The `tif`s were downloaded from "CropScape - Cropland Data Layer" of USDA.  The projected coordinate system of the files were checked (`FALSE`).
+
+```{r}
+library(raster)
+library(sf)
+
+wcw <- st_read("D:/GEOG 728/Tutorials/WCW/Wildcat_Creek_Watershed.shp")
+
+crs(wcw)
+
+riley_2019 <- raster("D:/GEOG 728/Lab Assignments/CDL_2019-2016/CDL_2019_20161.tif")
+
+crs(riley_2019)
+
+st_crs(wcw) == st_crs(riley_2019)
+
+riley_2018 <- raster("D:/GEOG 728/Lab Assignments/CDL_2019-2016/CDL_2018_20161.tif")
+
+riley_2017 <- raster("D:/GEOG 728/Lab Assignments/CDL_2019-2016/CDL_2017_20161.tif")
+
+riley_2016 <- raster("D:/GEOG 728/Lab Assignments/CDL_2019-2016/CDL_2016_20161.tif")
+```
+
+
+### 1. Selecting only the part of the raster (Select by Mask) 
+
+The watershed `wcw` `.shp` file is transformed to the Riley's projection system. 
+
+```{r}
+wcw <- st_transform(wcw, crs(riley_2019))
+
+st_crs(wcw)
+
+st_crs(riley_2019)
+
+st_crs(wcw) == st_crs(riley_2019)
+st_crs(wcw) == st_crs(riley_2018)
+st_crs(wcw) == st_crs(riley_2017)
+st_crs(wcw) == st_crs(riley_2016)
+```
+
+Each of the four raster images were cropped by `wcw` boundary by using `crop()` function. Raster images have to be masked, as well. The cropped images were then masked, `mask()` by `wcw` file. The landuse legend is downloaded from the CDL website for our reference. 
+
+```{r}
+wcw_raster_2019 <- crop(riley_2019, wcw)
+plot(wcw_raster_2019)
+
+wcw_clean_2019 <- mask(wcw_raster_2019, mask = wcw)
+plot(wcw_clean_2019)
+
+wcw_raster_2018 <- crop(riley_2018, wcw)
+plot(wcw_raster_2018)
+
+wcw_clean_2018 <- mask(wcw_raster_2018, mask = wcw)
+plot(wcw_clean_2018)
+
+wcw_raster_2017 <- crop(riley_2017, wcw)
+plot(wcw_raster_2017)
+
+wcw_clean_2017 <- mask(wcw_raster_2017, mask = wcw)
+plot(wcw_clean_2017)
+
+wcw_raster_2016 <- crop(riley_2016, wcw)
+plot(wcw_raster_2016)
+
+wcw_clean_2016 <- mask(wcw_raster_2016, mask = wcw)
+plot(wcw_clean_2016)
+
+#how of using a loop or iterator!
+
+knitr::include_graphics("cdllegend_30m_r_KS_2019.jpg")
+```
+
+## 2. {.tabset}
+
+### 2. Commom landuse type
+
+
+```{r}
+show(wcw_clean_2019)
+
+freq(wcw_clean_2019)
+
+my_brick <- brick(wcw_clean_2019, wcw_clean_2018, wcw_clean_2017, wcw_clean_2016)
+
+stk <- stackApply(my_brick, fun = modal, indices = c(1,2,3,4), na.rm = T)
+plot(stk)
+
+freq(my_brick)
+```
+
+
+I used `show()` to see the features or the characteristics of the raster image, e.g. wcw_clean_2019. `freq()` is used to see the mode of each pixel value in the raster image. `brick()` in `{raster}` is used to create a multi-layer raster object, i.e. four raster images from 2016 to 2019 layered into one object. `stackApply()` is used to apply a function on a subsets of a `Brick`. `stackApply()` is used in lieu of `calc()` as we are going to find the highest landuse in each year seperately. So, the function = modal is used and the layers are indicated with indices `c(1,2,3,4)`. The four layers are plotted, seperately. `freq()` is applied the `brick` data to see the highest frequency value each year. Pixel value of 176 has the highest frequency in each year - `freq()`. The highest landuse is pasture land in each year from 2016 to 2019. 
+
+
+## 3. {.tabset}
+
+### 3. Change in landuse 
+
+
+```{r}
+show(wcw_clean_2016)
+show(wcw_clean_2019)
+
+diff <- wcw_clean_2016 - wcw_clean_2019
+
+par(mfrow=c(2,2))
+plot(diff)
+plot(wcw_clean_2016)
+
+mode <- calc(my_brick, fun = modal, na.rm = T)
+plot(mode)
+freq(mode)
+```
+
+
+`show()` is applied to see the resolution and extent of two raster images from 2016 and 2019. Both images have similar resolution and extent; so, mathematical operation of difference is applied and a new raster image is created. The difference raster is plotted. A large part is around the scale of zero indicating not much change in the land use in between 2016 and 2019. There are some small changes in the landuse where the value of rasters have either increased or decreased in the final raster layer. The small changes are observed in the upper part (green or high +ve integer) and the middle and lower part (pink-brown or low -ve integer).  
+
+In the multi-layer raster object, `calc()` is used along with `fun=modal` to find the most frequent land use in the brick raster. `freq()` is also applied. It is observed that value = 176 or grass/pasture is the largest landuse category in the composite mosaic. 
+
+## 4. {.tabset}
+
+### 4. Change the raster grid by factor 10
+
+
+```{r}
+wcw_clean_2019_I <- aggregate(wcw_clean_2019, fact = 10, fun = modal, na.rm=T) 
+res(wcw_clean_2019_I)
+
+plot(wcw_clean_2019_I)
+freq(wcw_clean_2019_I)
+```
+
+`aggregate()` is applied in a raster to create a new raster layer or raster brick of lower resolution (larger cells). `fact=10` or factorial is used to increase the size of cells or fewer cells in the resultant raster by X (arbitrary or random) times. `fun` can be associated with `mean`, `modal`, `min` or `max`. The resolution of new raster image is 300 by 300 meters. The coarse image is plotted and the `freq()` shows 176 or the grass/pasture as the highest landuse category. Some of the landuse categories are missing in this new raster image, such as such as pixel values = 6, 26, 28, etc.
+
+
+## 5. {.tabset}
+
+### 5. Grid of 1 km by 1 km
+
+
+```{r}
+ideal_ras <- raster(ncol = 10, nrow = 10, crs = wcw_clean_2019@crs)
+
+extent(ideal_ras) <- extent(wcw_clean_2019)
+
+res(ideal_ras) <- c(1000,1000)
+
+dim(ideal_ras)
+
+show(ideal_ras)
+```
+
+
+A new raster of 10 by 10 is created with `crs` as "wcw_clean_2019" - masked landuse of Riley from 2019. The extent is matched with that of Riley's. A resolution of 1 km by 1 km is set. `dim()` or `show()` gives the charateristics of the new raster as 16 by 21 and 336 cells or grids. 
+
+
+### 5. Coarser raster image
+
+
+```{r}
+wcw_clean_2019_II <- resample(wcw_clean_2019, ideal_ras, method = "ngb")
+
+res(wcw_clean_2019_II)
+
+show(wcw_clean_2019_II)
+freq(wcw_clean_2019_II)
+hist(wcw_clean_2019_II)
+plot(wcw_clean_2019_II)
+```
+
+
+`resample()` is applied from the pixel values of "wcw_clean_2019" to the new raster image. The method is nearest neighbor or "ngb" in the interpolation for assigning the values in pixels. The resolution of new raster is 1000 m by 1000 m. Many landuse categories are missing in the new coarser image. However, the highly used landuse category is still grass/pasture = 176. 
+
